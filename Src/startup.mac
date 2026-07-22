@@ -1,0 +1,311 @@
+.comment\
+==============================================================================================
+
+	    Common start-Up initialization Z80 code used along with RCL9's
+	"How to Port TRS-80 Machine Language Programs to the Exidy Sorcerer"
+
+		    Developed by RCL9 from January 1981 to ~April 1983
+				Rob's Retro Computing Archive
+				RetroComputingArchive@gmail.com
+					github.com/rcl9
+
+   Note: this is for use with modified TRS-80 Cassette Basic (12k ROM) and not the TRS-80 "Disk Basic".
+
+ ==============================================================================================
+
+Compile and link (on CP/M running on the Yaze emulator) using:
+	z80asm startup
+	l80 /p:0,startup,startup/n/e	 --> Answer "no" to "Origin below loader memory, move anyway?"
+
+You need to make these modifications of your own:
+
+1) Change the ".phase 8000H" to whereever you wish this code to run from.
+
+2) Change the address "XXXX" to the start of your machine language program in standard Z80
+   format (LSB MSB). This may be found on the cassette label in decimal or in addresses 40DFH (LSB) and
+   40E0H (MSB).
+
+3) Your final program will have a 'C3 AA BB' at 0100H which will jump to this start-up routine
+   code located at memory address BBAAh.
+
+==============================================================================================\
+
+	aseg
+	org 0100h
+	.phase 8000H
+
+; Start-up initialization
+
+init:
+	LD 	A, 0Ch
+	CALL 	0E01Bh	; Clear the Sorcerer's screen
+
+; Display "Toggle screen switch to TRS-80 mode" on the screen and then wait a bit.
+; This is only necessary if the Sorcerer has been modified with the TRS-80 video memory mapping circuit.
+	LD	HL, ToggleMsg
+	LD	DE, 0F410H
+	LD	BC, 0023H
+	LDIR
+
+; Delay Loop to wait on the message
+	LD	B, 0AH       ; Outer loop counter (Delay)
+x5091:
+	PUSH	BC
+	LD	BC, 0FFFFH    ; Inner loop counter
+x5095: 	DEC	BC
+	LD	A, B
+	OR	C
+	JR	NZ, x5095    ; Decrement BC until 0
+	POP	BC
+	DJNZ 	x5091      ; Loop outer delay
+
+;  Copy our special TRS-80 graphic character set to the Sorcerer's character generator ROM (512 bytes)
+	LD 	HL, 3103h
+	LD 	DE, 0FC00h
+	LD 	BC, 0200h
+	LDIR            ; Copy 512 bytes from 3103h -> FC00h
+
+; The following only applies to the non-CP/M version of RCL9's 'R/S Cassette Basic'
+;	LD HL, 0103h
+;	LD DE, 0000h
+;	LD BC, 3EFFh
+;	LDIR            ; Copy ~16KB from 0103h -> 0000h
+
+; Patch the 'RT_KEYBD_Input' as per the instructions from the 'RSKEYBARD.doc' keyboard emulator overview docs
+	LD 	A, 02h
+	LD 	(3329h), A	; Modify the first byte of the key$table from 0 to 2.
+	LD 	A, 0E8h
+	LD 	(3301h), A	; RT_KEYBD_Input, "OR 0f8H" -> "OR 0E8H"
+	LD 	A, 17h
+	LD 	(32F8h), A	; "AND 7" -> "AND 17h"
+	LD 	(32FAh), A	; "CP 7" -> "CP 17h"
+	LD 	A, 0FEh
+	LD 	(32F9h), A	; Oddly this keeps the "CP" operation the same
+
+; The user definable graphics RAM on the Sorcerer runs from F800H to FFFFH.
+; This sets the last 512 bytes to "all white"
+	LD 	A, 0FFh
+	LD 	(0FE00h), A
+	LD 	HL, 0FE00h
+	LD 	DE, 0FE01h
+	LD 	BC, 01FFh
+	LDIR			; Fill 512 bytes starting at 0xFE00 with 0xFF
+
+; This is not in air-raid.com and the others
+;	LD 	A, 0C9h
+;	LD 	(00ACh), A	; Patch address 00ACh with RET
+;	CALL 	0674h		; Call the TRS-80 BASIC start-up initialization code
+
+	CALL 	3200h		; Call our own custom system setup configuration in our TRS-80 Level II BASIC system.
+				; It doesn't do a whole lot.
+
+; Patch up the RST28 and RST38 vectors in page zero to point to our local code
+
+	LD 	HL, RST38code
+	LD 	(0039h), HL  ; RST38
+
+	LD 	HL, RST28code
+	LD 	(0029h), HL  ; RST28
+
+	JP 	XXXXh	; Address of the start of the machine language program in standard Z80 format (LSB MSB)
+			; This may be found on the cassette label in decimal or in addresses 40DFH (LSB) and 40E0H (MSB).
+
+ToggleMsg:
+	DEFB	"Toggle screen switch to TRS-80 mode     ", 0
+
+; ---------------------------------------------------------------------------------------------
+
+; SOUND routines
+;
+; This is a 'helper' Restart to make porting sound effects much easier.
+
+; When you come across a ‘D3 FB’ or ‘D3 FF’, just replace with ‘FF 00’. This causes a RESTART 38
+; which jumps to this driver, which in turn sends out the appropriate byte to port FF on the
+; Sorcerer. Sound will come from bit 2 of the parallel port. Use the sound interface found on
+; the schematic sheet.
+
+; RST 38 - Interrupt Handler
+
+RST38code:
+	PUSH 	AF
+	SLA 	A
+	SLA 	A
+	AND 	0Ch
+	OR 	01h
+	OUT 	(0FFh), A
+	POP 	AF
+	RET
+
+; ---------------------------------------------------------------------------------------------
+
+; RST 28h -- TRS-80 BASIC Memory Mapped Keyboard Emulator
+;
+; Refer to the tutorial which explains how this works.
+;
+; When calling, HL must contain one of: 3801,3802,3804,3808,3810,3820,3840,3880
+;
+;   3801 = @,A,B,C,D,E,F,G
+;   3802 = H,I,J,K,L,M,N,O
+;   3804 = P,Q,R,S,T,U,V,W
+;   3808 = X,Y,Z
+;   3810 = 0,1,2,3,4,5,6,7
+;   3820 = 8,9,:,;,,,-,.,/
+;   3840 = RETURN,CLEAR,BREAK,^,\,[,],SPACE BAR
+;   3880 = SHIFT
+;
+; Upon return, A = the contents of (HL) as if on a TRS-80 machine (ex. if 'A' key pressed, return A=2)
+
+RST28code:
+	; This block is invoked via RST 28h and fetches the next 2 bytes immediately following the call in the instruction stream.
+	EX	(SP), HL     ; The following code picks up the 16-bit address after the RST28 call
+	LD	A, (HL)
+	EX	AF, AF'
+	INC	HL
+	LD	A, (HL)
+	INC	HL
+	EX	(SP), HL
+	PUSH	HL
+	LD	H, A
+	EX	AF, AF'
+	LD	L, A
+	LD	A, L
+	CP	40h		; Check if low byte of arg is 40h
+	JP	Z, x8190	; If the keybaord memory address is '0x3840', jump to Keyboard/Port polling logic
+	CALL	x8100		; Else, call dictionary/table lookup
+	POP	HL		; Restore original HL
+	RET
+
+x8100:
+	PUSH 	BC
+	PUSH 	DE
+	CALL 	32E0h        ; Call GetKey in R/S Basic
+	JR 	Z,x813C       ; Return if no key pressed
+	PUSH 	HL           ; Save R/S keyboard memory locaton wanted
+	LD 	BC, 0040h      ; Search for keyboard character in lookup table
+	LD 	HL, x817F      ; HL points to last byte in the lookup table
+	CPDR			; Search for character, BC = position in the table
+	JR 	Z, x8115       ; Jump if character was found
+	POP 	HL            ; Char not found in the table so return from routine
+	JR 	x813C          ; Exit
+
+x8115:
+	PUSH 	BC
+	POP 	HL            ; HL = char position in table = Dividend
+	LD 	C, 8         ; Divisor
+	LD 	B, 8         ; # of bits in the divisor
+; 8-bit division loop (HL / C)
+DIV:
+	ADD 	HL, HL        ; Shift dividend, quotient left 1 bit
+	LD 	A, H           ; Can divisor be subtracted?
+	SUB 	C             ;
+	JR 	C, x8122       ; No, goto next step
+	LD 	H, A           ; Yes, subtract divisor from dividend
+	INC 	L             ; Add 1 to quotient
+CNT:
+x8122:
+	DJNZ 	DIV
+	LD 	B, L           ; B = Quotient
+	LD 	C, H           ; C = Remainder
+
+; Find character's corresponding memory location
+
+	XOR 	A             ; Zero A
+	INC 	B             ; Inc B so DJNZ won't decrement to FF if B = 0
+
+; Clever Code Notice: This is a bit-shifting loop.
+; DJNZ (FD = -3) jumps into the *middle* of the "CB 17" instruction.
+; CB 17 = RL A (2 bytes). Byte 17 alone = RLA (1 byte).
+	SCF             ; Set Carry for rotate
+	RL A		; A = 2^B
+	DEFB	10H, 0FDH	; DJNZ -3  -- A = 2^B
+
+	POP 	HL
+	CP 	L              ; Does A == Low byte of R/S keyboard memory address
+	JR 	NZ, x813C      ; No, return from the subroutine
+	XOR 	A             ; Zero
+
+; Find character's bit position within memory location
+
+	LD 	B, C           ; B = remainder
+	INC 	B             ; Inc B so DJNZ won't dec to FF if B = 0
+	SCF               ; Set carry for shift left
+	RL 	A
+	DEFB	10H, 0FDH	; DJNZ -3  -- A = 2^B
+
+x8139:
+	POP 	DE            ; Restore
+	POP 	BC
+	RET               ; Return with A=(HL) = Keyboard mem contents of a TRS-80 machine
+
+x813c:
+	XOR 	A             ; Key not pressed or key does not belong to (HL) keyboard location
+	JR 	x8139          ;   so zero A and return from the subroutine
+
+; Character lookup table
+
+x8140:	DEFB    "@ABCDEFGHIJKLMNO"
+	DEFB    "PQRSTUVWXYZ"
+	DEFB    0,0,0,0,0
+	DEFB    "0123456789:;,-./"
+	DEFB    0Dh, 1Fh, 01h, 5Eh, 5Ch, 5Bh, 5Dh, 20h, 02h, 0, 0, 0, 0, 0, 0
+x817F:	DEFB	0
+
+; ---------------------------------------------------------------------------------------------
+
+; This handles the special keyboard case of: 3840 = RETURN,CLEAR,BREAK,^,\,[,],SPACEBAR
+
+x8190:
+	PUSH 	BC
+	LD 	B, 00h
+	LD 	A, 0Dh
+	OUT 	(0FEh), A   ; Poll hardware row 0Dh
+	IN 	A, (0FEh)
+	BIT 	2, A
+	JR 	NZ, x819F
+	SET 	5, B        ; Pack result into register B
+x819f:
+	BIT 	3, A
+	JR 	NZ, x81A5
+	SET 	3, B
+x81A5:
+	LD 	A, 0Eh
+	OUT 	(0FEh), A   ; Poll hardware row 0Eh
+	IN 	A, (0FEh)
+	BIT 	1, A
+	JR 	NZ, x81B1
+	SET 	4, B
+x81B1:
+	BIT 	3, A
+	JR 	NZ, x81B7
+	SET 	6, B
+x81B7:
+	LD 	A, 0Bh
+	OUT 	(0FEh), A   ; Poll hardware row 0Bh
+	IN 	A, (0FEh)
+	BIT 	1, A
+	JR 	NZ, x81C3
+	SET 	0, B
+x81C3:
+	LD 	A, 01h
+	OUT 	(0FEh), A   ; Poll hardware row 01h
+	IN 	A, (0FEh)
+	BIT 	2, A
+	JR 	NZ, x81CF
+	SET 	7, B
+x81CF:
+	BIT 	0, A
+	JR 	NZ, x81D5
+	SET 	1, B
+x81D5:
+	BIT 	4, A
+	JR 	NZ, x81DB
+	SET 	2, B
+x81DB:
+	LD 	A, B         ; Move packed input bits into A
+	POP 	BC
+	POP 	HL
+	RET
+
+.dephase
+
+	END
