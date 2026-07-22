@@ -160,13 +160,13 @@ If it doesn’t work, which is 90% probable, go through all the fixes and see what
 
 ## Example Converted Programs
 
-I had used the techniques in this tutorial to port several TRS-80 machine language games to the Exidy Sorcerer in the early 1980s. However, all of them required the use of my hardwar circuit to run except for the FS1 Flight Simulator which will run on any Exidy Sorcerer.
+I had used the techniques in this tutorial to port [several TRS-80 machine language games](</Examples/Example_Ported_Programs.zip>) to the Exidy Sorcerer in the early 1980s. However, all of them required the use of my hardwar circuit to run except for the FS1 Flight Simulator which will run on any Exidy Sorcerer.
 
 1) [FS1 Flight Simulator](<https://www.trs-80.org/t80-fs1.html>) - **flitsimu.com**. This port does not require the TRS-80 BASIC runtime system. At startup (0100H) the program is relocated to 4000H and then a sub-set of my "start-up routine" code executed at 7500H. I have a PDF file documenting all of the byte-level changes I made to the program to allow it to run natively on the Sorcerer. 
 
 2) The other programs require my hardware circuit to be enabled and hence will not run on a generic Exidy Sorcerer. Each of them has my [modified TRS-80 BASIC] incorporated as the runtime system (from 0 to 2FFFH). The following table provides a short overview of them:
 
-| Program Name | Offset to 'Start-Up Routine'  | 
+| [Program Name](</Examples/Example_Ported_Programs.zip>) | Offset to 'Start-Up Routine'  | 
 | :---: | :---: | 
 | Air-raid.com	| 8000H |
 | Asylum16.com	| 4200H |
