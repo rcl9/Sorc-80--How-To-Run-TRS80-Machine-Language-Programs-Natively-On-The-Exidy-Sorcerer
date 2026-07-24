@@ -72,18 +72,18 @@ Accesses to addresses 3C00H to 3FFFH in the program probably point to the TRS-80
 	TRS-80 	      ------>>>> 	Sorcerer 
 
 	LD A,(3C00H) 		LD A,(F400H)
-	ADD 80H 		ADD 80H
+	ADD 80H 			ADD 80H
 	LD (3C00H),A 		LD (F400H),A
 
 	LD HL,3DF0H 		LD HL,F5F0H
 	LD DE,3F10H 		LD DE,F710H
 	LD BC,0020H 		LD BC,0020H
-	LDIR 			LDIR
+	LDIR 				LDIR
 
 	LD DE,3D4FH 		---> We must be careful in this case.
 	LD A,(49AFH)	 		DE looks like it points to the
-	AND D 				TRS-80 screen but in fact just
-	OR E 				holds two constant values and not a screen address.
+	AND D 					TRS-80 screen but in fact just
+	OR E 					holds two constant values and not a screen address.
 ```
 
 ## 2) Program-Level Changes -- Memory mapped keyboard addresses
@@ -96,7 +96,7 @@ Instead of changing addresses or adding calls to make this work I have come up w
 	TRS-80 					Sorcerer 
 
 	3A 10 38 	LD A, (3810H) 		EF 	RST 28H
-					10 38 	DEFB 10,38
+							10 38 	DEFB 10,38
 ```
 
 The 3810H comes from the chart found in the ‘KEY(X)’ conversion chart in the TRS-80 Level II BASIC’s documentation. On the left the program is looking at the keys in memory location 3810H. All we have done to convert it is add an ‘EF’ in place of the ‘3A’. When my subroutine is called with the RESTART 28, it pops the stack and the fetches the 2 byte keyboard address from the memory locations after the ‘EF’. Therefore you only have to change one byte per keyboard access. 
