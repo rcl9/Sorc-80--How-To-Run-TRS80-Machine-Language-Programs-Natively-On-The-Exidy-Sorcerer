@@ -26,11 +26,11 @@ The best method to address this issue is with the addition of a hardware change 
 
 When the front panel SPDT switch is in "Sorcerer mode" then no changes happen to the video circuitrty. But when the switch is flipped over to  "TRS-80 mode":
 
-	- Any time a program accesses 3C00H-3FFFH in memory then pin 8 of the 74LS30 goes low to signal that we are accessing TRS-80 video memory.
+- Any time a program accesses 3C00H-3FFFH in memory then pin 8 of the 74LS30 goes low to signal that we are accessing TRS-80 video memory.
 
-	- The video circuitry is enabled by intercepting the Sorcerer's /F000 line.
+- The video circuitry is enabled by intercepting the Sorcerer's /F000 line.
 
-	- Pin 8 of the 3D (A11) is brought low so that screen accesses to 3C00H-3FFFH will be transferred to F400H-F7FFH.
+- Pin 8 of the 3D (A11) is brought low so that screen accesses to 3C00H-3FFFH will be transferred to F400H-F7FFH.
 
 Accessing 3C00H to 3FFFH in the Exidy Sorcerer is then exactly the same as accessing its main video memory at F400H-F7FFH. In TRS-80 mode, the Sorcerer's first 24 lines from F080H to F3FFH are unaffected. 
 
